@@ -1,0 +1,463 @@
+-- ============================================================================
+-- 🔥 SCOPED & FPS AIMLOCK + HITBOX EXPANDER GUI (BY ZELYNX)
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local Camera = Workspace.CurrentCamera
+
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    if Workspace.CurrentCamera then
+        Camera = Workspace.CurrentCamera
+    end
+end)
+
+local function getGuiParent()
+    if gethui then
+        local ok, hui = pcall(gethui)
+        if ok and hui then return hui end
+    end
+    local ok, core = pcall(function() return CoreGui end)
+    if ok and core then return core end
+    return LocalPlayer:WaitForChild("PlayerGui", 5)
+end
+
+local parentGui = getGuiParent()
+if parentGui:FindFirstChild("ScopedAimHitboxGui") then
+    pcall(function() parentGui.ScopedAimHitboxGui:Destroy() end)
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ScopedAimHitboxGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 999999
+ScreenGui.Parent = parentGui
+
+-- FOV Circle Drawing
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Radius = 120
+FOVCircle.Filled = false
+FOVCircle.Thickness = 1.5
+FOVCircle.Color = Color3.fromRGB(0, 235, 255)
+FOVCircle.Transparency = 0.8
+
+-- Main Frame
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.fromOffset(240, 290)
+MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local mainStroke = Instance.new("UIStroke", MainFrame)
+mainStroke.Thickness = 1.5
+mainStroke.Color = Color3.fromRGB(0, 235, 255)
+
+-- TopBar
+local TopBar = Instance.new("Frame", MainFrame)
+TopBar.Size = UDim2.new(1, 0, 0, 32)
+TopBar.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+TopBar.BorderSizePixel = 0
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
+
+local TitleLbl = Instance.new("TextLabel", TopBar)
+TitleLbl.Size = UDim2.new(1, -40, 1, 0)
+TitleLbl.Position = UDim2.fromOffset(10, 0)
+TitleLbl.BackgroundTransparency = 1
+TitleLbl.Font = Enum.Font.GothamBold
+TitleLbl.Text = "🎯 Scoped | Aim & Hitbox"
+TitleLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
+TitleLbl.TextSize = 12
+TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local ToggleGuiBtn = Instance.new("TextButton", TopBar)
+ToggleGuiBtn.Size = UDim2.fromOffset(24, 24)
+ToggleGuiBtn.Position = UDim2.new(1, -28, 0.5, -12)
+ToggleGuiBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+ToggleGuiBtn.Font = Enum.Font.GothamBold
+ToggleGuiBtn.Text = "▼"
+ToggleGuiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleGuiBtn.TextSize = 11
+Instance.new("UICorner", ToggleGuiBtn).CornerRadius = UDim.new(0, 6)
+
+local Content = Instance.new("ScrollingFrame", MainFrame)
+Content.Size = UDim2.new(1, -12, 1, -40)
+Content.Position = UDim2.fromOffset(6, 36)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ScrollBarThickness = 2
+Content.ScrollBarImageColor3 = Color3.fromRGB(0, 235, 255)
+Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+local cLayout = Instance.new("UIListLayout", Content)
+cLayout.Padding = UDim.new(0, 6)
+cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Dragging Logic
+local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+TopBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+local isCollapsed = false
+ToggleGuiBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    if isCollapsed then
+        ToggleGuiBtn.Text = "▲"
+        Content.Visible = false
+        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 32) }):Play()
+    else
+        ToggleGuiBtn.Text = "▼"
+        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 290) }):Play()
+        task.delay(0.1, function() if not isCollapsed then Content.Visible = true end end)
+    end
+end)
+
+-- UI Builder Helpers
+local function createSection(text)
+    local lbl = Instance.new("TextLabel", Content)
+    lbl.Size = UDim2.new(1, 0, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Text = "◆ " .. text
+    lbl.TextColor3 = Color3.fromRGB(0, 235, 255)
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+local function createToggle(name, default, callback)
+    local btn = Instance.new("TextButton", Content)
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    local st = Instance.new("UIStroke", btn)
+    st.Thickness = 1
+    st.Color = Color3.fromRGB(45, 45, 65)
+
+    local lbl = Instance.new("TextLabel", btn)
+    lbl.Size = UDim2.new(1, -50, 1, 0)
+    lbl.Position = UDim2.fromOffset(10, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.Text = name
+    lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local switch = Instance.new("Frame", btn)
+    switch.Size = UDim2.fromOffset(36, 18)
+    switch.Position = UDim2.new(1, -44, 0.5, -9)
+    switch.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    Instance.new("UICorner", switch).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame", switch)
+    knob.Size = UDim2.fromOffset(12, 12)
+    knob.Position = UDim2.new(0, 3, 0.5, -6)
+    knob.BackgroundColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local state = default or false
+    local function update(val)
+        state = val
+        TweenService:Create(switch, TweenInfo.new(0.15), { BackgroundColor3 = state and Color3.fromRGB(0, 235, 255) or Color3.fromRGB(45, 45, 60) }):Play()
+        TweenService:Create(knob, TweenInfo.new(0.15), { Position = state and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6) }):Play()
+        TweenService:Create(st, TweenInfo.new(0.15), { Color = state and Color3.fromRGB(0, 235, 255) or Color3.fromRGB(45, 45, 65) }):Play()
+        if callback then task.spawn(callback, state) end
+    end
+
+    btn.MouseButton1Click:Connect(function() update(not state) end)
+    if state then update(true) end
+    return { Get = function() return state end }
+end
+
+local function createSlider(name, min, max, default, suffix, callback)
+    local card = Instance.new("Frame", Content)
+    card.Size = UDim2.new(1, 0, 0, 44)
+    card.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+    local st = Instance.new("UIStroke", card)
+    st.Thickness = 1
+    st.Color = Color3.fromRGB(45, 45, 65)
+
+    local lbl = Instance.new("TextLabel", card)
+    lbl.Size = UDim2.new(1, -80, 0, 18)
+    lbl.Position = UDim2.fromOffset(10, 4)
+    lbl.BackgroundTransparency = 1
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.Text = name
+    lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local valLbl = Instance.new("TextLabel", card)
+    valLbl.Size = UDim2.fromOffset(70, 18)
+    valLbl.Position = UDim2.new(1, -75, 0, 4)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.Text = tostring(default) .. (suffix or "")
+    valLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
+    valLbl.TextSize = 11
+    valLbl.TextXAlignment = Enum.TextXAlignment.Right
+
+    local bar = Instance.new("TextButton", card)
+    bar.Size = UDim2.new(1, -20, 0, 6)
+    bar.Position = UDim2.fromOffset(10, 28)
+    bar.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    bar.Text = ""
+    bar.AutoButtonColor = false
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame", bar)
+    fill.Size = UDim2.new(math.clamp((default - min)/(max - min), 0, 1), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 235, 255)
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local sliding = false
+    local curVal = default
+    local function update(pos)
+        local rel = math.clamp((pos.X - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X), 0, 1)
+        curVal = math.floor(min + (max - min) * rel + 0.5)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        valLbl.Text = tostring(curVal) .. (suffix or "")
+        if callback then task.spawn(callback, curVal) end
+    end
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            sliding = true
+            update(input.Position)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input.Position)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            sliding = false
+        end
+    end)
+end
+
+-- ============================================================================
+-- LOGIC FUNCTIONS & FEATURES
+-- ============================================================================
+
+local Settings = {
+    HitboxEnabled = false,
+    HitboxSize = 6,
+    HitboxVisible = true, -- Nhìn hitbox / Không nhìn hitbox
+
+    AimlockEnabled = false,
+    WallCheck = true,
+    FovCircleEnabled = true,
+    FovSize = 150,
+}
+
+local function getHRP(model)
+    if not model then return nil end
+    return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+end
+
+local function isAlive(model)
+    if not model or not model.Parent then return false end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    local hrp = getHRP(model)
+    if not (hum and hrp) or hum.Health <= 0 then return false end
+    if model:FindFirstChildOfClass("ForceField") then return false end
+    return true
+end
+
+-- Quản lý Hitbox & Visual SelectionBox
+local trackedHitboxes = {}
+
+local function clearHitboxes()
+    for model, data in pairs(trackedHitboxes) do
+        if data.Box then pcall(function() data.Box:Destroy() end) end
+        if data.Part and data.OrigSize then
+            pcall(function() data.Part.Size = data.OrigSize end)
+        end
+    end
+    table.clear(trackedHitboxes)
+end
+
+-- Aimlock + Wall Check Logic
+local function getBestAimTarget()
+    local myChar = LocalPlayer.Character
+    local myHRP = getHRP(myChar)
+    if not myHRP or not Camera then return nil end
+
+    local bestTarget, shortestDist = nil, math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {myChar}
+    rayParams.IgnoreWater = true
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and isAlive(p.Character) then
+            local targetChar = p.Character
+            local targetPart = targetChar:FindFirstChild("Head") or getHRP(targetChar)
+            
+            if targetPart then
+                -- Kiểm tra FOV
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if screenDist <= Settings.FovSize then
+                        -- Wall Check (Kiểm tra xem có bị tường cản không)
+                        local hasClearLine = true
+                        if Settings.WallCheck then
+                            local dir = targetPart.Position - Camera.CFrame.Position
+                            local result = Workspace:Raycast(Camera.CFrame.Position, dir, rayParams)
+                            if result and not result.Instance:IsDescendantOf(targetChar) then
+                                hasClearLine = false
+                            end
+                        end
+
+                        if hasClearLine and screenDist < shortestDist then
+                            shortestDist = screenDist
+                            bestTarget = targetPart
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestTarget
+end
+
+-- ============================================================================
+-- UI SETUP & BINDING
+-- ============================================================================
+
+createSection("Hitbox Expander")
+createToggle("Hitbox Expander", false, function(v)
+    Settings.HitboxEnabled = v
+    if not v then clearHitboxes() end
+end)
+createToggle("Show Hitbox (Nhìn Khung)", true, function(v)
+    Settings.HitboxVisible = v
+end)
+createSlider("Hitbox Size", 3, 20, 6, " studs", function(v)
+    Settings.HitboxSize = v
+end)
+
+createSection("Aimlock & FOV")
+createToggle("Aimlock (Khóa Tâm)", false, function(v)
+    Settings.AimlockEnabled = v
+end)
+createToggle("Wall Check (Chống Xuyên Tường)", true, function(v)
+    Settings.WallCheck = v
+end)
+createToggle("Show FOV Circle (Vòng Tâm)", true, function(v)
+    Settings.FovCircleEnabled = v
+    FOVCircle.Visible = v
+end)
+createSlider("FOV Size", 50, 400, 150, " px", function(v)
+    Settings.FovSize = v
+    FOVCircle.Radius = v
+end)
+
+-- ============================================================================
+-- MAIN RUNTIME LOOPS
+-- ============================================================================
+
+RunService.Heartbeat:Connect(function()
+    -- FOV Circle Update
+    if Settings.FovCircleEnabled and Settings.AimlockEnabled then
+        FOVCircle.Visible = true
+        FOVCircle.Position = UserInputService:GetMouseLocation()
+    else
+        FOVCircle.Visible = false
+    end
+
+    -- Hitbox Expander Loop
+    if Settings.HitboxEnabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and isAlive(p.Character) then
+                local targetChar = p.Character
+                local part = getHRP(targetChar) or targetChar:FindFirstChild("Head")
+                
+                if part then
+                    if not trackedHitboxes[targetChar] then
+                        trackedHitboxes[targetChar] = { Part = part, OrigSize = part.Size }
+                    end
+                    
+                    part.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+                    part.CanCollide = false
+
+                    -- Quản lý hiển thị khung (Nhìn / Không nhìn hitbox)
+                    if Settings.HitboxVisible then
+                        local box = targetChar:FindFirstChild("TSBz_HitboxVisual")
+                        if not box then
+                            box = Instance.new("SelectionBox")
+                            box.Name = "TSBz_HitboxVisual"
+                            box.Adornee = part
+                            box.Color3 = Color3.fromRGB(255, 60, 60)
+                            box.LineThickness = 0.05
+                            box.SurfaceTransparency = 0.9
+                            box.Parent = targetChar
+                        end
+                        trackedHitboxes[targetChar].Box = box
+                    else
+                        local box = targetChar:FindFirstChild("TSBz_HitboxVisual")
+                        if box then box:Destroy() end
+                    end
+                end
+            end
+        end
+    else
+        clearHitboxes()
+    end
+
+    -- Aimlock Loop
+    if Settings.AimlockEnabled then
+        local targetPart = getBestAimTarget()
+        if targetPart then
+            Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
+        end
+    end
+end)
+
+-- Dọn dẹp khi reset nhân vật hoặc tắt script
+LocalPlayer.CharacterAdded:Connect(function()
+    clearHitboxes()
+end)
+
+print("🎯 Scoped Aim & Hitbox GUI Loaded Successfully!")
