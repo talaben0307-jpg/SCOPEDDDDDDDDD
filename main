@@ -1,7 +1,3 @@
--- ============================================================================
--- 🔥 SCOPED & FPS AIMLOCK + HITBOX EXPANDER GUI (BY ZELYNX)
--- ============================================================================
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -41,18 +37,16 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 999999
 ScreenGui.Parent = parentGui
 
--- FOV Circle Drawing
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
-FOVCircle.Radius = 120
+FOVCircle.Radius = 150
 FOVCircle.Filled = false
 FOVCircle.Thickness = 1.5
 FOVCircle.Color = Color3.fromRGB(0, 235, 255)
 FOVCircle.Transparency = 0.8
 
--- Main Frame
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(240, 290)
+MainFrame.Size = UDim2.fromOffset(240, 350)
 MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 MainFrame.BorderSizePixel = 0
@@ -63,7 +57,6 @@ local mainStroke = Instance.new("UIStroke", MainFrame)
 mainStroke.Thickness = 1.5
 mainStroke.Color = Color3.fromRGB(0, 235, 255)
 
--- TopBar
 local TopBar = Instance.new("Frame", MainFrame)
 TopBar.Size = UDim2.new(1, 0, 0, 32)
 TopBar.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
@@ -75,7 +68,7 @@ TitleLbl.Size = UDim2.new(1, -40, 1, 0)
 TitleLbl.Position = UDim2.fromOffset(10, 0)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "🎯 Scoped | Aim & Hitbox"
+TitleLbl.Text = "🎯 Scoped v1.1 | Aim & Hitbox"
 TitleLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
 TitleLbl.TextSize = 12
 TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -103,7 +96,6 @@ local cLayout = Instance.new("UIListLayout", Content)
 cLayout.Padding = UDim.new(0, 6)
 cLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Dragging Logic
 local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -138,12 +130,11 @@ ToggleGuiBtn.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 32) }):Play()
     else
         ToggleGuiBtn.Text = "▼"
-        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 290) }):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 350) }):Play()
         task.delay(0.1, function() if not isCollapsed then Content.Visible = true end end)
     end
 end)
 
--- UI Builder Helpers
 local function createSection(text)
     local lbl = Instance.new("TextLabel", Content)
     lbl.Size = UDim2.new(1, 0, 0, 20)
@@ -273,16 +264,14 @@ local function createSlider(name, min, max, default, suffix, callback)
     end)
 end
 
--- ============================================================================
--- LOGIC FUNCTIONS & FEATURES
--- ============================================================================
-
 local Settings = {
     HitboxEnabled = false,
     HitboxSize = 6,
-    HitboxVisible = true, -- Nhìn hitbox / Không nhìn hitbox
+    HitboxVisible = true,
+    IncludeBots = true,
 
     AimlockEnabled = false,
+    TeamCheck = true,
     WallCheck = true,
     FovCircleEnabled = true,
     FovSize = 150,
@@ -302,7 +291,6 @@ local function isAlive(model)
     return true
 end
 
--- Quản lý Hitbox & Visual SelectionBox
 local trackedHitboxes = {}
 
 local function clearHitboxes()
@@ -315,7 +303,6 @@ local function clearHitboxes()
     table.clear(trackedHitboxes)
 end
 
--- Aimlock + Wall Check Logic
 local function getBestAimTarget()
     local myChar = LocalPlayer.Character
     local myHRP = getHRP(myChar)
@@ -329,42 +316,57 @@ local function getBestAimTarget()
     rayParams.FilterDescendantsInstances = {myChar}
     rayParams.IgnoreWater = true
 
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and isAlive(p.Character) then
-            local targetChar = p.Character
-            local targetPart = targetChar:FindFirstChild("Head") or getHRP(targetChar)
-            
-            if targetPart then
-                -- Kiểm tra FOV
-                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                if onScreen then
-                    local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                    if screenDist <= Settings.FovSize then
-                        -- Wall Check (Kiểm tra xem có bị tường cản không)
-                        local hasClearLine = true
-                        if Settings.WallCheck then
-                            local dir = targetPart.Position - Camera.CFrame.Position
-                            local result = Workspace:Raycast(Camera.CFrame.Position, dir, rayParams)
-                            if result and not result.Instance:IsDescendantOf(targetChar) then
-                                hasClearLine = false
-                            end
-                        end
+    local function evaluateModel(model, isPlayer, playerObj)
+        if model == myChar then return end
+        if not isAlive(model) then return end
 
-                        if hasClearLine and screenDist < shortestDist then
-                            shortestDist = screenDist
-                            bestTarget = targetPart
+        if Settings.TeamCheck and isPlayer and playerObj then
+            if playerObj.Team and LocalPlayer.Team and playerObj.Team == LocalPlayer.Team then
+                return
+            end
+        end
+
+        local targetPart = model:FindFirstChild("Head") or getHRP(model)
+        if targetPart then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            if onScreen then
+                local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if screenDist <= Settings.FovSize then
+                    local hasClearLine = true
+                    if Settings.WallCheck then
+                        local dir = targetPart.Position - Camera.CFrame.Position
+                        local result = Workspace:Raycast(Camera.CFrame.Position, dir, rayParams)
+                        if result and not result.Instance:IsDescendantOf(model) then
+                            hasClearLine = false
                         end
+                    end
+
+                    if hasClearLine and screenDist < shortestDist then
+                        shortestDist = screenDist
+                        bestTarget = targetPart
                     end
                 end
             end
         end
     end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            evaluateModel(p.Character, true, p)
+        end
+    end
+
+    if Settings.IncludeBots then
+        local liveFolder = Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Characters") or Workspace
+        for _, obj in ipairs(liveFolder:GetChildren()) do
+            if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
+                evaluateModel(obj, false, nil)
+            end
+        end
+    end
+
     return bestTarget
 end
-
--- ============================================================================
--- UI SETUP & BINDING
--- ============================================================================
 
 createSection("Hitbox Expander")
 createToggle("Hitbox Expander", false, function(v)
@@ -374,6 +376,9 @@ end)
 createToggle("Show Hitbox (Nhìn Khung)", true, function(v)
     Settings.HitboxVisible = v
 end)
+createToggle("Apply to Bots / Dummies", true, function(v)
+    Settings.IncludeBots = v
+end)
 createSlider("Hitbox Size", 3, 20, 6, " studs", function(v)
     Settings.HitboxSize = v
 end)
@@ -381,6 +386,9 @@ end)
 createSection("Aimlock & FOV")
 createToggle("Aimlock (Khóa Tâm)", false, function(v)
     Settings.AimlockEnabled = v
+end)
+createToggle("Team Check (Cùng Team Không Bắn)", true, function(v)
+    Settings.TeamCheck = v
 end)
 createToggle("Wall Check (Chống Xuyên Tường)", true, function(v)
     Settings.WallCheck = v
@@ -394,12 +402,7 @@ createSlider("FOV Size", 50, 400, 150, " px", function(v)
     FOVCircle.Radius = v
 end)
 
--- ============================================================================
--- MAIN RUNTIME LOOPS
--- ============================================================================
-
 RunService.Heartbeat:Connect(function()
-    -- FOV Circle Update
     if Settings.FovCircleEnabled and Settings.AimlockEnabled then
         FOVCircle.Visible = true
         FOVCircle.Position = UserInputService:GetMouseLocation()
@@ -407,38 +410,50 @@ RunService.Heartbeat:Connect(function()
         FOVCircle.Visible = false
     end
 
-    -- Hitbox Expander Loop
     if Settings.HitboxEnabled then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and isAlive(p.Character) then
-                local targetChar = p.Character
-                local part = getHRP(targetChar) or targetChar:FindFirstChild("Head")
-                
-                if part then
-                    if not trackedHitboxes[targetChar] then
-                        trackedHitboxes[targetChar] = { Part = part, OrigSize = part.Size }
-                    end
-                    
-                    part.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
-                    part.CanCollide = false
+        local function processModel(model, isPlayer)
+            if model == LocalPlayer.Character then return end
+            if not isAlive(model) then return end
 
-                    -- Quản lý hiển thị khung (Nhìn / Không nhìn hitbox)
-                    if Settings.HitboxVisible then
-                        local box = targetChar:FindFirstChild("TSBz_HitboxVisual")
-                        if not box then
-                            box = Instance.new("SelectionBox")
-                            box.Name = "TSBz_HitboxVisual"
-                            box.Adornee = part
-                            box.Color3 = Color3.fromRGB(255, 60, 60)
-                            box.LineThickness = 0.05
-                            box.SurfaceTransparency = 0.9
-                            box.Parent = targetChar
-                        end
-                        trackedHitboxes[targetChar].Box = box
-                    else
-                        local box = targetChar:FindFirstChild("TSBz_HitboxVisual")
-                        if box then box:Destroy() end
+            local part = getHRP(model) or model:FindFirstChild("Head")
+            if part then
+                if not trackedHitboxes[model] then
+                    trackedHitboxes[model] = { Part = part, OrigSize = part.Size }
+                end
+
+                part.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+                part.CanCollide = false
+
+                if Settings.HitboxVisible then
+                    local box = model:FindFirstChild("TSBz_HitboxVisual")
+                    if not box then
+                        box = Instance.new("SelectionBox")
+                        box.Name = "TSBz_HitboxVisual"
+                        box.Adornee = part
+                        box.Color3 = Color3.fromRGB(255, 60, 60)
+                        box.LineThickness = 0.05
+                        box.SurfaceTransparency = 0.85
+                        box.Parent = model
                     end
+                    trackedHitboxes[model].Box = box
+                else
+                    local box = model:FindFirstChild("TSBz_HitboxVisual")
+                    if box then box:Destroy() end
+                end
+            end
+        end
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                processModel(p.Character, true)
+            end
+        end
+
+        if Settings.IncludeBots then
+            local liveFolder = Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Characters") or Workspace
+            for _, obj in ipairs(liveFolder:GetChildren()) do
+                if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
+                    processModel(obj, false)
                 end
             end
         end
@@ -446,7 +461,6 @@ RunService.Heartbeat:Connect(function()
         clearHitboxes()
     end
 
-    -- Aimlock Loop
     if Settings.AimlockEnabled then
         local targetPart = getBestAimTarget()
         if targetPart then
@@ -455,9 +469,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Dọn dẹp khi reset nhân vật hoặc tắt script
 LocalPlayer.CharacterAdded:Connect(function()
     clearHitboxes()
 end)
-
-print("🎯 Scoped Aim & Hitbox GUI Loaded Successfully!")
