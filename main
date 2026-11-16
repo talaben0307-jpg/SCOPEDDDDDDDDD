@@ -1,9 +1,10 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
+local cloneref = cloneref or function(o) return o end
+local Players = cloneref(game:GetService("Players"))
+local RunService = cloneref(game:GetService("RunService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local TweenService = cloneref(game:GetService("TweenService"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
@@ -18,12 +19,12 @@ local function getGuiParent()
 end
 
 local parentGui = getGuiParent()
-if parentGui:FindFirstChild("ScopedHitboxGui") then
-    pcall(function() parentGui.ScopedHitboxGui:Destroy() end)
+if parentGui:FindFirstChild("ScopedUNCAdvancedHitbox") then
+    pcall(function() parentGui.ScopedUNCAdvancedHitbox:Destroy() end)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ScopedHitboxGui"
+ScreenGui.Name = "ScopedUNCAdvancedHitbox"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -31,7 +32,7 @@ ScreenGui.DisplayOrder = 999999
 ScreenGui.Parent = parentGui
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(240, 240)
+MainFrame.Size = UDim2.fromOffset(240, 260)
 MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 MainFrame.BorderSizePixel = 0
@@ -53,9 +54,9 @@ TitleLbl.Size = UDim2.new(1, -40, 1, 0)
 TitleLbl.Position = UDim2.fromOffset(10, 0)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "🎯 Scoped v1.4 | Hitbox"
+TitleLbl.Text = "🎯 Scoped v1.5 | UNC Hitbox"
 TitleLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
-TitleLbl.TextSize = 12
+TitleLbl.TextSize = 11
 TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
 
 local ToggleGuiBtn = Instance.new("TextButton", TopBar)
@@ -115,7 +116,7 @@ ToggleGuiBtn.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 32) }):Play()
     else
         ToggleGuiBtn.Text = "▼"
-        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 240) }):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 260) }):Play()
         task.delay(0.1, function() if not isCollapsed then Content.Visible = true end end)
     end
 end)
@@ -251,7 +252,7 @@ end
 
 local Settings = {
     HitboxEnabled = false,
-    HitboxSize = 6,
+    HitboxSize = 8,
     HitboxVisible = true,
     IncludeBots = true,
 }
@@ -282,20 +283,46 @@ local function clearHitboxes()
     table.clear(trackedHitboxes)
 end
 
-createSection("Hitbox Expander")
+createSection("Advanced UNC Hitbox")
 createToggle("Hitbox Expander", false, function(v)
     Settings.HitboxEnabled = v
     if not v then clearHitboxes() end
 end)
-createToggle("Show Hitbox (Nhìn Khung)", true, function(v)
+createToggle("Show Hitbox (Hiện Khung)", true, function(v)
     Settings.HitboxVisible = v
 end)
 createToggle("Apply to Bots / Dummies", true, function(v)
     Settings.IncludeBots = v
 end)
-createSlider("Hitbox Size", 3, 25, 6, " studs", function(v)
+createSlider("Hitbox Size", 3, 30, 8, " studs", function(v)
     Settings.HitboxSize = v
 end)
+
+local mt = getrawmetatable and getrawmetatable(game)
+if mt and hookmetamethod then
+    setreadonly(mt, false)
+    local oldNamecall = mt.__namecall
+    hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        if Settings.HitboxEnabled and method == "FireServer" then
+            for i, arg in ipairs(args) do
+                if typeof(arg) == "Instance" and arg:IsA("BasePart") then
+                    for model, _ in pairs(trackedHitboxes) do
+                        if arg:IsDescendantOf(model) then
+                            local hrp = getHRP(model)
+                            if hrp then
+                                args[i] = hrp
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return oldNamecall(self, unpack(args))
+    end)
+    setreadonly(mt, true)
+end
 
 RunService.RenderStepped:Connect(function()
     if Settings.HitboxEnabled then
