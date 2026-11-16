@@ -19,12 +19,12 @@ local function getGuiParent()
 end
 
 local parentGui = getGuiParent()
-if parentGui:FindFirstChild("ScopedUNCAdvancedHitbox") then
-    pcall(function() parentGui.ScopedUNCAdvancedHitbox:Destroy() end)
+if parentGui:FindFirstChild("ScopedOptimizedHitbox") then
+    pcall(function() parentGui.ScopedOptimizedHitbox:Destroy() end)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ScopedUNCAdvancedHitbox"
+ScreenGui.Name = "ScopedOptimizedHitbox"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -54,7 +54,7 @@ TitleLbl.Size = UDim2.new(1, -40, 1, 0)
 TitleLbl.Position = UDim2.fromOffset(10, 0)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "🎯 Scoped v1.5 | UNC Hitbox"
+TitleLbl.Text = "🎯 Scoped v1.6 | Optimized"
 TitleLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
 TitleLbl.TextSize = 11
 TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -283,7 +283,7 @@ local function clearHitboxes()
     table.clear(trackedHitboxes)
 end
 
-createSection("Advanced UNC Hitbox")
+createSection("Optimized UNC Hitbox")
 createToggle("Hitbox Expander", false, function(v)
     Settings.HitboxEnabled = v
     if not v then clearHitboxes() end
@@ -324,56 +324,59 @@ if mt and hookmetamethod then
     setreadonly(mt, true)
 end
 
-RunService.RenderStepped:Connect(function()
-    if Settings.HitboxEnabled then
-        local function processModel(model)
-            if model == LocalPlayer.Character then return end
-            if not isAlive(model) then return end
+local runTimer = 0
+RunService.RenderStepped:Connect(function(dt)
+    if not Settings.HitboxEnabled then return end
+    
+    runTimer = runTimer + dt
+    if runTimer < 0.05 then return end
+    runTimer = 0
 
-            local part = getHRP(model) or model:FindFirstChild("Head")
-            if part then
-                if not trackedHitboxes[model] then
-                    trackedHitboxes[model] = { Part = part, OrigSize = part.Size }
+    local function processModel(model)
+        if model == LocalPlayer.Character then return end
+        if not isAlive(model) then return end
+
+        local part = getHRP(model) or model:FindFirstChild("Head")
+        if part then
+            if not trackedHitboxes[model] then
+                trackedHitboxes[model] = { Part = part, OrigSize = part.Size }
+            end
+
+            part.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+            part.CanCollide = false
+
+            if Settings.HitboxVisible then
+                local box = model:FindFirstChild("TSBz_HitboxVisual")
+                if not box then
+                    box = Instance.new("SelectionBox")
+                    box.Name = "TSBz_HitboxVisual"
+                    box.Adornee = part
+                    box.Color3 = Color3.fromRGB(255, 60, 60)
+                    box.LineThickness = 0.05
+                    box.SurfaceTransparency = 0.85
+                    box.Parent = model
                 end
-
-                part.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
-                part.CanCollide = false
-
-                if Settings.HitboxVisible then
-                    local box = model:FindFirstChild("TSBz_HitboxVisual")
-                    if not box then
-                        box = Instance.new("SelectionBox")
-                        box.Name = "TSBz_HitboxVisual"
-                        box.Adornee = part
-                        box.Color3 = Color3.fromRGB(255, 60, 60)
-                        box.LineThickness = 0.05
-                        box.SurfaceTransparency = 0.85
-                        box.Parent = model
-                    end
-                    trackedHitboxes[model].Box = box
-                else
-                    local box = model:FindFirstChild("TSBz_HitboxVisual")
-                    if box then box:Destroy() end
-                end
+                trackedHitboxes[model].Box = box
+            else
+                local box = model:FindFirstChild("TSBz_HitboxVisual")
+                if box then box:Destroy() end
             end
         end
+    end
 
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                processModel(p.Character)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            processModel(p.Character)
+        end
+    end
+
+    if Settings.IncludeBots then
+        local liveFolder = Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Characters") or Workspace
+        for _, obj in ipairs(liveFolder:GetChildren()) do
+            if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
+                processModel(obj)
             end
         end
-
-        if Settings.IncludeBots then
-            local liveFolder = Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Characters") or Workspace
-            for _, obj in ipairs(liveFolder:GetChildren()) do
-                if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
-                    processModel(obj)
-                end
-            end
-        end
-    else
-        clearHitboxes()
     end
 end)
 
