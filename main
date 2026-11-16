@@ -6,13 +6,6 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local Camera = Workspace.CurrentCamera
-
-Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    if Workspace.CurrentCamera then
-        Camera = Workspace.CurrentCamera
-    end
-end)
 
 local function getGuiParent()
     if gethui then
@@ -25,28 +18,20 @@ local function getGuiParent()
 end
 
 local parentGui = getGuiParent()
-if parentGui:FindFirstChild("ScopedAimHitboxGui") then
-    pcall(function() parentGui.ScopedAimHitboxGui:Destroy() end)
+if parentGui:FindFirstChild("ScopedHitboxGui") then
+    pcall(function() parentGui.ScopedHitboxGui:Destroy() end)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ScopedAimHitboxGui"
+ScreenGui.Name = "ScopedHitboxGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 999999
 ScreenGui.Parent = parentGui
 
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Radius = 150
-FOVCircle.Filled = false
-FOVCircle.Thickness = 1.5
-FOVCircle.Color = Color3.fromRGB(0, 235, 255)
-FOVCircle.Transparency = 0.8
-
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(240, 350)
+MainFrame.Size = UDim2.fromOffset(240, 240)
 MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 MainFrame.BorderSizePixel = 0
@@ -68,7 +53,7 @@ TitleLbl.Size = UDim2.new(1, -40, 1, 0)
 TitleLbl.Position = UDim2.fromOffset(10, 0)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "🎯 Scoped v1.2 | Aim & Hitbox"
+TitleLbl.Text = "🎯 Scoped v1.4 | Hitbox"
 TitleLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
 TitleLbl.TextSize = 12
 TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -130,7 +115,7 @@ ToggleGuiBtn.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 32) }):Play()
     else
         ToggleGuiBtn.Text = "▼"
-        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 350) }):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.18), { Size = UDim2.fromOffset(240, 240) }):Play()
         task.delay(0.1, function() if not isCollapsed then Content.Visible = true end end)
     end
 end)
@@ -269,17 +254,11 @@ local Settings = {
     HitboxSize = 6,
     HitboxVisible = true,
     IncludeBots = true,
-
-    AimlockEnabled = false,
-    TeamCheck = false,
-    WallCheck = false,
-    FovCircleEnabled = true,
-    FovSize = 180,
 }
 
 local function getHRP(model)
     if not model then return nil end
-    return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+    return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("UpperTorso")
 end
 
 local function isAlive(model)
@@ -303,71 +282,6 @@ local function clearHitboxes()
     table.clear(trackedHitboxes)
 end
 
-local function getBestAimTarget()
-    local myChar = LocalPlayer.Character
-    local myHRP = getHRP(myChar)
-    if not myHRP or not Camera then return nil end
-
-    local bestTarget, shortestDist = nil, math.huge
-    local mousePos = UserInputService:GetMouseLocation()
-
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = {myChar}
-    rayParams.IgnoreWater = true
-
-    local function evaluateModel(model, isPlayer, playerObj)
-        if model == myChar then return end
-        if not isAlive(model) then return end
-
-        if Settings.TeamCheck and isPlayer and playerObj then
-            if playerObj.Team and LocalPlayer.Team and playerObj.Team == LocalPlayer.Team then
-                return
-            end
-        end
-
-        local targetPart = model:FindFirstChild("Head") or getHRP(model)
-        if targetPart then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-            if onScreen then
-                local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                if screenDist <= Settings.FovSize then
-                    local hasClearLine = true
-                    if Settings.WallCheck then
-                        local dir = targetPart.Position - Camera.CFrame.Position
-                        local result = Workspace:Raycast(Camera.CFrame.Position, dir, rayParams)
-                        if result and not result.Instance:IsDescendantOf(model) then
-                            hasClearLine = false
-                        end
-                    end
-
-                    if hasClearLine and screenDist < shortestDist then
-                        shortestDist = screenDist
-                        bestTarget = targetPart
-                    end
-                end
-            end
-        end
-    end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            evaluateModel(p.Character, true, p)
-        end
-    end
-
-    if Settings.IncludeBots then
-        local liveFolder = Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Characters") or Workspace
-        for _, obj in ipairs(liveFolder:GetChildren()) do
-            if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
-                evaluateModel(obj, false, nil)
-            end
-        end
-    end
-
-    return bestTarget
-end
-
 createSection("Hitbox Expander")
 createToggle("Hitbox Expander", false, function(v)
     Settings.HitboxEnabled = v
@@ -379,39 +293,13 @@ end)
 createToggle("Apply to Bots / Dummies", true, function(v)
     Settings.IncludeBots = v
 end)
-createSlider("Hitbox Size", 3, 20, 6, " studs", function(v)
+createSlider("Hitbox Size", 3, 25, 6, " studs", function(v)
     Settings.HitboxSize = v
 end)
 
-createSection("Aimlock & FOV")
-createToggle("Aimlock (Khóa Tâm)", false, function(v)
-    Settings.AimlockEnabled = v
-end)
-createToggle("Team Check", false, function(v)
-    Settings.TeamCheck = v
-end)
-createToggle("Wall Check", false, function(v)
-    Settings.WallCheck = v
-end)
-createToggle("Show FOV Circle (Vòng Tâm)", true, function(v)
-    Settings.FovCircleEnabled = v
-    FOVCircle.Visible = v
-end)
-createSlider("FOV Size", 50, 600, 180, " px", function(v)
-    Settings.FovSize = v
-    FOVCircle.Radius = v
-end)
-
 RunService.RenderStepped:Connect(function()
-    if Settings.FovCircleEnabled and Settings.AimlockEnabled then
-        FOVCircle.Visible = true
-        FOVCircle.Position = UserInputService:GetMouseLocation()
-    else
-        FOVCircle.Visible = false
-    end
-
     if Settings.HitboxEnabled then
-        local function processModel(model, isPlayer)
+        local function processModel(model)
             if model == LocalPlayer.Character then return end
             if not isAlive(model) then return end
 
@@ -445,7 +333,7 @@ RunService.RenderStepped:Connect(function()
 
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
-                processModel(p.Character, true)
+                processModel(p.Character)
             end
         end
 
@@ -453,19 +341,12 @@ RunService.RenderStepped:Connect(function()
             local liveFolder = Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Characters") or Workspace
             for _, obj in ipairs(liveFolder:GetChildren()) do
                 if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
-                    processModel(obj, false)
+                    processModel(obj)
                 end
             end
         end
     else
         clearHitboxes()
-    end
-
-    if Settings.AimlockEnabled then
-        local targetPart = getBestAimTarget()
-        if targetPart then
-            Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
-        end
     end
 end)
 
