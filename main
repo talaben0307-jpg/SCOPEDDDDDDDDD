@@ -68,7 +68,7 @@ TitleLbl.Size = UDim2.new(1, -40, 1, 0)
 TitleLbl.Position = UDim2.fromOffset(10, 0)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "🎯 Scoped v1.1 | Aim & Hitbox"
+TitleLbl.Text = "🎯 Scoped v1.2 | Aim & Hitbox"
 TitleLbl.TextColor3 = Color3.fromRGB(0, 235, 255)
 TitleLbl.TextSize = 12
 TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -271,10 +271,10 @@ local Settings = {
     IncludeBots = true,
 
     AimlockEnabled = false,
-    TeamCheck = true,
-    WallCheck = true,
+    TeamCheck = false,
+    WallCheck = false,
     FovCircleEnabled = true,
-    FovSize = 150,
+    FovSize = 180,
 }
 
 local function getHRP(model)
@@ -387,22 +387,22 @@ createSection("Aimlock & FOV")
 createToggle("Aimlock (Khóa Tâm)", false, function(v)
     Settings.AimlockEnabled = v
 end)
-createToggle("Team Check (Cùng Team Không Bắn)", true, function(v)
+createToggle("Team Check", false, function(v)
     Settings.TeamCheck = v
 end)
-createToggle("Wall Check (Chống Xuyên Tường)", true, function(v)
+createToggle("Wall Check", false, function(v)
     Settings.WallCheck = v
 end)
 createToggle("Show FOV Circle (Vòng Tâm)", true, function(v)
     Settings.FovCircleEnabled = v
     FOVCircle.Visible = v
 end)
-createSlider("FOV Size", 50, 400, 150, " px", function(v)
+createSlider("FOV Size", 50, 600, 180, " px", function(v)
     Settings.FovSize = v
     FOVCircle.Radius = v
 end)
 
-RunService.Heartbeat:Connect(function()
+RunService.RenderStepped:Connect(function()
     if Settings.FovCircleEnabled and Settings.AimlockEnabled then
         FOVCircle.Visible = true
         FOVCircle.Position = UserInputService:GetMouseLocation()
